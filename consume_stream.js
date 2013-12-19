@@ -1,34 +1,46 @@
 var Twit = require('twit'),
-    config = require('config')
+    redis = require('redis'),
+    config = require('./config')
 
-var T = new Twit(config)
-
-
-
-var stream = T.stream('user')
+var T = new Twit(config),
+    db = redis.createClient(),
+    stream = T.stream('user')
 
 stream.on('connect', function (request) {
-  console.log('connecting')
-//  console.log(request)
-})
-
-stream.on('disconnect', function (disconnectMessage) {
-  console.log('dicsonnect')
-  console.log(disconnectMessage)
+  console.log('Connected to stream...')
 })
 
 stream.on('reconnect', function (request, response, connectInterval) {
-  console.log('reconnect')
+  console.log('reconnecting to stream...')
 })
 
+/**
+ * Twitter sent a disconnect message to us
+ */
+stream.on('disconnect', function (disconnectMessage) {
+  console.log('Disconnected from stream!')
+  console.log(disconnectMessage)
+  quit()
+})
+
+
 stream.on('tweet', function (tweet) {
-  console.log(tweet)
-  stream.stop()
+  console.log('set tweet:'+tweet.id_str)
+  db.set('tweet:'+tweet.id_str, JSON.stringify(tweet), redis.print)
+  db.expire('tweet:'+tweet.id_str, 604800, redis.print) // 7 days
+  db.lpush('timeline', tweet.id_str, redis.print)
 })
 
 stream.on('error', function(err) {
-  console.log('error')
+  console.log('Stream error!')
   console.log(err)
-  stream.stop()
+  quit()
 })
 
+/**
+ * Quit and cleanup
+ */
+function quit() {
+  stream.stop()
+  db.quit()
+}
