@@ -26,9 +26,14 @@ stream.on('disconnect', function (disconnectMessage) {
 
 stream.on('tweet', function (tweet) {
   console.log('set tweet:'+tweet.id_str)
+  var created_at_regex = /^(\w{3}) (\w{3}) (\d{2}) (\d{2}:\d{2}:\d{2}) \+0000 (\d{4})/
+  var created_at = created_at_regex.exec(tweet.created_at)
+  var date = new Date(created_at[1]+", "+created_at[3]+" "+created_at[2]+" "+created_at[5]+" "+created_at[4]+" +0000")
+  console.log(tweet.created_at, date, date.getTime())
   db.set('tweet:'+tweet.id_str, JSON.stringify(tweet), redis.print)
   db.expire('tweet:'+tweet.id_str, 604800, redis.print) // 7 days
   db.lpush('timeline', tweet.id_str, redis.print)
+  db.zadd('timeline_sorted_epoch', date.getTime(), tweet.id_str, redis.print)
 })
 
 stream.on('error', function(err) {
